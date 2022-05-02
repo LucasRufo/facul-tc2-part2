@@ -1,4 +1,50 @@
+import axios, { AxiosError } from "axios";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { apiClient } from "../../services/api";
+import { showSuccessToast } from "../../utils/showSuccessToast";
+
+type Error = {
+  hasError: boolean;
+  message: string;
+}
+
 export function IMC() {
+  const { register, handleSubmit, reset } = useForm();
+
+  const [pesoError, setPesoError] = useState<Error>({ hasError: false, message: "" });
+  const [alturaError, setAlturaError] = useState<Error>({ hasError: false, message: "" });
+  const [disableButtons, setDisableButtons] = useState(false);
+
+  const onSubmit = async (data: any) => {
+    setDisableButtons(true);
+
+    try {
+      setAlturaError({ hasError: false, message: "" });
+      setPesoError({ hasError: false, message: "" });
+
+      const response = await apiClient.post('/imc/calcular', data);
+
+      reset();
+
+      showSuccessToast(response.data?.message)
+    } catch (error: any | AxiosError) {
+      if (axios.isAxiosError(error)) {
+        const { errors } = error.response.data as any;
+
+        const alturaError = errors?.altura
+        const pesoError = errors?.peso
+
+        setAlturaError({ hasError: !!alturaError, message: !!alturaError ? alturaError[0] : "" });
+        setPesoError({ hasError: !!pesoError, message: !!pesoError ? pesoError[0] : "" });
+      } else {
+        console.log(error);
+      }
+    }
+
+    setDisableButtons(false);
+  }
+
   return (
     <section id="imc" className="imc">
       <div className="container">
@@ -16,18 +62,25 @@ export function IMC() {
         </div>
 
         <div className="imc-form">
-          <form id="formIMC">
+          <form id="formIMC" onSubmit={handleSubmit(onSubmit)}>
             <div className="imc-form-group">
               <label htmlFor="peso" className="label">Peso <small>(ex: 80,5)</small></label>
-              <input type="text" name="peso" id="peso" className="input" placeholder="Peso" />
+              <input {...register('peso')} type="text" name="peso" id="peso" className={`input ${pesoError.hasError ? 'error' : ''}`} placeholder="Peso" />
+              {pesoError.hasError && <p className="error-message">{pesoError.message}</p>}
             </div>
             <div className="imc-form-group">
-              <label htmlFor="altura" className="label">Altura <small>(ex: 1,80)</small></label>
-              <input type="text" name="altura" id="altura" className="input" placeholder="Altura" />
+              <label htmlFor="altura" className="label ">Altura <small>(ex: 1,80)</small></label>
+              <input {...register('altura')} type="text" name="altura" id="altura" className={`input ${alturaError.hasError ? 'error' : ''}`} placeholder="Altura" />
+              {alturaError.hasError && <p className="error-message">{alturaError.message}</p>}
             </div>
-            <div>
-              <button type="submit" className="button">Calcular</button>
-              <button type="reset" className="button">Limpar</button>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button type="submit" className="button" disabled={disableButtons}>Calcular</button>
+              <button type="reset" className="button" disabled={disableButtons} onClick={() => {
+                setDisableButtons(false);
+                setAlturaError({ hasError: false, message: "" });
+                setPesoError({ hasError: false, message: "" });
+                reset();
+              }}>Limpar</button>
             </div>
 
             <div id="resultado" className="resultado d-none"></div>
@@ -37,7 +90,7 @@ export function IMC() {
             <table className="imc-table">
               <thead>
                 <tr>
-                  <th>classNameificação</th>
+                  <th>Classificação</th>
                   <th>IMC</th>
                 </tr>
               </thead>

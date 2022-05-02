@@ -31,7 +31,7 @@ export default function Home() {
 
       <Cadastro />
 
-      <hr />
+      <hr style={{ marginTop: '3rem' }} />
 
       <Mapa />
 
