@@ -4,15 +4,84 @@ import { useForm } from "react-hook-form";
 import { apiClient } from "../../services/api";
 import { showErrorToast } from "../../utils/showErrorToast";
 import { showSuccessToast } from "../../utils/showSuccessToast";
+import Modal from 'react-modal';
 
 type Error = {
   hasError: boolean;
   message: string;
 }
 
+const customStyles = {
+  content: {
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    marginRight: '-50%',
+    transform: 'translate(-50%, -50%)',
+  },
+};
+
 export function Cadastro() {
   const { register, handleSubmit, reset, setValue } = useForm();
   const [termo, setTermo] = useState(false);
+  const [modalIsOpen, setIsOpen] = useState(false);
+  const [isEdicao, setIsEdicao] = useState(false);
+
+  function openModal() {
+    setIsOpen(true);
+  }
+
+  function closeModal() {
+    setIsOpen(false);
+  }
+
+  const excluirCadastro = async () => {
+    try {
+      const cpfValue = localStorage.getItem("cpf");
+      await apiClient.delete(`/cadastro/${cpfValue}`);
+      showSuccessToast("Cadastro excluído com sucesso!");
+      closeModal();
+      reset();
+    } catch (error) {
+      showErrorToast("Erro ao excluir cadastro");
+    }
+  }
+
+  const editarCadastro = async () => {
+    const response = JSON.parse(localStorage.getItem("response"));
+    setIsEdicao(true);
+    setValue("nomeCompleto", response.nomeCompleto);
+    setValue("email", response.email);
+    setValue("dataNascimento", response.dataNascimento);
+    setValue("cep", response.cep);
+    setValue("logradouro", response.logradouro);
+    setValue("numeroLogradouro", response.numeroLogradouro);
+    setValue("sexo", response.sexo);
+    setValue('logradouro', response.logradouro);
+    setValue('cidade', response.cidade);
+    setValue('uf', response.uf);
+    closeModal();
+  }
+
+  const onCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const cpfValue = e.target.value;
+    if (cpfValue?.length === 11) {
+      localStorage.setItem("cpf", cpfValue);
+      apiClient.get(`/cadastro/${cpfValue}`)
+        .then(response => {
+          openModal()
+          localStorage.setItem("response", JSON.stringify(response.data));
+        })
+        .catch(error => {
+          if (axios.isAxiosError(error)) {
+            showErrorToast((error.response.data as any)?.message)
+          } else {
+            console.log(error);
+          }
+        })
+    }
+  }
 
   const [nomeError, setNomeError] = useState<Error>({ hasError: false, message: "" });
   const [cpfError, setCpfError] = useState<Error>({ hasError: false, message: "" });
@@ -64,13 +133,17 @@ export function Cadastro() {
       setUfError({ hasError: false, message: "" });
       setCpfError({ hasError: false, message: "" });
 
-      console.log(data)
-
-      const response = await apiClient.post('/cadastro', data);
+      if (isEdicao) {
+        const editData = JSON.parse(localStorage.getItem("response"));
+        data.id = editData.id;
+        const response = await apiClient.put(`/cadastro`, data);
+        showSuccessToast(response.data?.message)
+      } else {
+        const response = await apiClient.post('/cadastro', data);
+        showSuccessToast(response.data?.message)
+      }
 
       reset();
-
-      showSuccessToast(response.data?.message)
     } catch (error: any | AxiosError) {
       if (axios.isAxiosError(error)) {
         if (error.response.status === 422) {
@@ -140,7 +213,7 @@ export function Cadastro() {
           <div className="form-group">
             <div className="w-100">
               <label htmlFor="cpf">CPF: </label>
-              <input {...register("cpf")} className={`input ${dataNascimentoError.hasError ? 'error' : ''}`} type="text" name="cpf" id="cpf" />
+              <input {...register("cpf")} onChange={onCPFChange} className={`input ${dataNascimentoError.hasError ? 'error' : ''}`} type="text" name="cpf" id="cpf" />
               {cpfError.hasError && <p className="error-message">{cpfError.message}</p>}
             </div>
             <div className="w-50" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -217,6 +290,24 @@ export function Cadastro() {
 
         </form>
       </div>
+
+
+      <Modal
+        ariaHideApp={false}
+        isOpen={modalIsOpen}
+        onRequestClose={closeModal}
+        style={customStyles}
+        contentLabel="Modal Exclusão ou Edição"
+      >
+        <h2>Olá, esse cadastro já existe.</h2>
+        <br />
+        <h3>Você deseja alterar ou excluir esse cadastro?</h3>
+        <div className="action-buttons">
+          <button className="button" onClick={editarCadastro}>Editar</button>
+          <button className="button" style={{ backgroundColor: 'red' }} onClick={excluirCadastro}>Excluir</button>
+        </div>
+      </Modal>
+
     </section>
   )
 }
